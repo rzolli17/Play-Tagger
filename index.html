@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f1720">
+<title>Play Tagger</title>
+<style>
+:root{--bg:#0f1720;--panel:#18222e;--line:#2a3746;--text:#eef2f6;--dim:#93a1b2;--accent:#2f8cff;--good:#22c55e;--check:#eab308;--miss:#ef4444;--talk:#e11d48}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+body{padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+header{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5}
+header h1{font-size:17px;margin:0;flex:1}
+nav button,.btn{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:15px}
+nav button.on{background:var(--accent);border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent)}
+.btn.danger{color:var(--miss)}
+main{padding:12px 14px 40px;max-width:640px;margin:0 auto}
+.hide{display:none!important}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.quarters button{flex:1;min-width:44px;padding:10px 0;font-weight:600}
+.quarters button.on{background:var(--accent);border-color:var(--accent)}
+#talk{width:100%;height:150px;margin:12px 0 8px;border-radius:20px;border:0;background:var(--talk);color:#fff;font-size:26px;font-weight:700;user-select:none;-webkit-user-select:none;touch-action:none}
+#talk.live{background:#16a34a;transform:scale(.98)}
+#talk:disabled{background:#3b4656;color:var(--dim)}
+#live{min-height:24px;color:var(--dim);font-size:15px;text-align:center}
+.last{background:var(--panel);border:2px solid var(--line);border-radius:14px;padding:12px;margin:10px 0}
+.last.good{border-color:var(--good)}.last.check{border-color:var(--check)}.last.miss{border-color:var(--miss)}
+.last .call{font-size:22px;font-weight:700}
+.last .heard{color:var(--dim);font-size:14px;margin-top:4px}
+.log{list-style:none;margin:0;padding:0}
+.log li{display:flex;gap:10px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--line)}
+.log .n{width:34px;color:var(--dim);font-variant-numeric:tabular-nums;text-align:right}
+.log .q{width:28px;color:var(--dim);font-size:13px}
+.log .c{flex:1}
+.log .c small{display:block;color:var(--dim);font-size:12px}
+.dot{width:12px;height:12px;border-radius:50%;flex:none}
+.dot.good{background:var(--good)}.dot.check{background:var(--check)}.dot.miss{background:var(--miss)}.dot.manual{background:var(--accent)}
+textarea{width:100%;min-height:300px;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px;font:14px/1.4 ui-monospace,Menlo,monospace}
+input[type=text]{width:100%;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:16px}
+h2{font-size:15px;color:var(--dim);margin:18px 0 8px;text-transform:uppercase;letter-spacing:.04em}
+p.help{color:var(--dim);font-size:14px;margin:6px 0}
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:20;display:flex;align-items:flex-end}
+.sheet .card{background:var(--bg);width:100%;max-height:88vh;overflow:auto;border-radius:16px 16px 0 0;padding:14px 14px calc(14px + env(safe-area-inset-bottom))}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.grid button{padding:12px 6px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--text);font-size:15px}
+.grid button.on{background:var(--accent);border-color:var(--accent)}
+.warn{background:#3b2a07;border:1px solid var(--check);border-radius:10px;padding:10px;font-size:14px;margin:8px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Play Tagger</h1>
+  <nav class="row"><button id="tabGame" class="on">Game</button><button id="tabSheet">Play sheet</button></nav>
+</header>
+
+<main id="game">
+  <div id="noSpeech" class="warn hide">Voice isn't available in this browser. Open this page in Safari on the iPhone. You can still tag plays with the Tap button.</div>
+  <div class="row quarters" id="quarters"></div>
+  <button id="talk">Hold to talk</button>
+  <div id="live"></div>
+  <div class="row">
+    <button class="btn" id="tapBtn" style="flex:1">Tap a play</button>
+    <button class="btn" id="exportBtn" style="flex:1">Export CSV</button>
+  </div>
+  <div id="last" class="last hide"></div>
+  <h2><span id="count">0</span> plays</h2>
+  <ul class="log" id="log"></ul>
+  <h2>Game</h2>
+  <div class="row"><button class="btn" id="renameBtn">Name this game</button><button class="btn danger" id="newGameBtn">New game</button></div>
+  <p class="help">Plays save on this phone after every tag. Tap any play in the list to fix or delete it.</p>
+  <h2>Type a test call</h2>
+  <div class="row"><input type="text" id="typeCall" placeholder="e.g. ace triple left 24 power"><button class="btn" id="typeBtn">Tag</button></div>
+</main>
+
+<main id="sheetView" class="hide">
+  <p class="help">One play per line. Start a group with <b>#</b> (like <b># Formation</b> and <b># Play</b>) so a call like "Ace Triple Left 24 Power" fills both. Add nicknames or common mishearings after a <b>|</b>, like <b>Four Verts | 4 verts | verticals</b>.</p>
+  <div id="sampleNote" class="warn hide">This is a sample play list. Replace it with the real play sheet.</div>
+  <textarea id="sheetText" spellcheck="false" autocapitalize="off" autocorrect="off"></textarea>
+  <div class="row" style="margin-top:8px"><button class="btn primary" id="saveSheet">Save play sheet</button><span id="sheetInfo" class="help"></span></div>
+</main>
+
+<div id="modal" class="sheet hide"><div class="card" id="modalCard"></div></div>
+
+<script src="matcher.js"></script>
+<script>
+const SAMPLE = `# Formation
+Ace Triple Left
+Ace Triple Right
+Ace
+Deuce Left
+Deuce Right
+Gun Trips Left
+Gun Trips Right
+Empty
+# Play
+24 Power
+25 Power
+36 Counter
+37 Counter
+Inside Zone
+Outside Zone
+Jet Sweep
+Smash
+Four Verts | 4 verts | verticals
+Mesh
+Screen Left
+Screen Right
+PA Boot | play action boot`;
+
+const QUARTERS = ['1', '2', '3', '4', 'OT'];
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('pt.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('pt.' + k, JSON.stringify(v)); } catch {} },
+};
+
+let sheetText = store.get('sheet', null);
+let cats = Matcher.parseSheet(sheetText || SAMPLE);
+let game = store.get('game', null) || newGame();
+let quarter = store.get('quarter', '1');
+const $ = id => document.getElementById(id);
+
+function newGame() { return { name: '', started: new Date().toISOString(), plays: [] }; }
+function save() { store.set('game', game); store.set('quarter', quarter); }
+function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]); }
+function callText(p) { return p.tags.filter(Boolean).join(' · ') || 'Not recognized'; }
+function timeStr(iso) { return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
+
+function render() {
+  $('title').textContent = game.name || 'Play Tagger';
+  $('quarters').innerHTML = QUARTERS.map(q => `<button class="btn ${q === quarter ? 'on' : ''}" data-q="${q}">${q === 'OT' ? 'OT' : 'Q' + q}</button>`).join('');
+  $('count').textContent = game.plays.length;
+  $('log').innerHTML = game.plays.map((p, i) => ({ p, i })).reverse().map(({ p, i }) =>
+    `<li data-i="${i}"><span class="n">${i + 1}</span><span class="dot ${p.manual ? 'manual' : p.level}"></span><span class="q">Q${p.quarter}</span><span class="c">${esc(callText(p))}${p.heard ? `<small>heard: "${esc(p.heard)}"</small>` : ''}</span></li>`).join('');
+}
+
+function showLast(p) {
+  const el = $('last');
+  el.className = 'last ' + (p.manual ? 'good' : p.level);
+  const label = p.manual ? 'Tagged by hand' : p.level === 'good' ? 'Tagged' : p.level === 'check' ? 'Check this one (tap to fix)' : 'Not recognized (tap to fix)';
+  el.innerHTML = `<div class="help">#${game.plays.indexOf(p) + 1} · ${label}</div><div class="call">${esc(callText(p))}</div>${p.heard ? `<div class="heard">heard: "${esc(p.heard)}"</div>` : ''}`;
+  el.onclick = () => editPlay(game.plays.indexOf(p));
+}
+
+function addPlay(result, manual) {
+  const p = {
+    quarter, time: new Date().toISOString(), tags: result.tags.slice(), heard: result.heard || '',
+    level: manual ? 'good' : result.level, confidence: manual ? 1 : +result.confidence.toFixed(2), manual: !!manual,
+  };
+  game.plays.push(p);
+  save(); render(); showLast(p);
+  if (navigator.vibrate) navigator.vibrate(p.level === 'good' ? 40 : [40, 60, 40]);
+}
+
+function tagFromText(alts) {
+  const r = Matcher.match(alts, cats);
+  addPlay(r, false);
+}
+
+// ---- Speech ----
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, listening = false, finals = [], done = [], interim = '';
+if (!SR) { $('noSpeech').classList.remove('hide'); $('talk').disabled = true; $('talk').textContent = 'Voice unavailable'; }
+
+function startTalk(e) {
+  e.preventDefault();
+  if (!SR || listening) return;
+  listening = true; finals = []; done = []; interim = '';
+  $('talk').classList.add('live'); $('talk').textContent = 'Listening… release when done';
+  $('live').textContent = '';
+  rec = new SR();
+  rec.lang = 'en-US'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 5;
+  rec.onresult = ev => {
+    interim = '';
+    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      const res = ev.results[i];
+      if (res.isFinal) { finals[i] = Array.from(res).map(a => a.transcript); }
+      else interim += res[0].transcript;
+    }
+    $('live').textContent = currentText();
+  };
+  rec.onerror = ev => { if (ev.error === 'not-allowed') $('live').textContent = 'Microphone blocked. Allow it in Safari settings for this site.'; else if (ev.error === 'network') $('live').textContent = 'No connection for voice. Use Tap a play.'; };
+  rec.onend = () => { if (listening) { done.push(...finals.filter(Boolean)); finals = []; try { rec.start(); } catch {} } else finish(); };
+  try { rec.start(); } catch {}
+}
+function currentText() { return done.concat(finals.filter(Boolean)).map(f => f[0]).join(' ') + (interim ? ' ' + interim : ''); }
+function stopTalk(e) {
+  if (e) e.preventDefault();
+  if (!listening) return;
+  listening = false;
+  $('talk').classList.remove('live'); $('talk').textContent = 'Hold to talk';
+  // Give the recognizer a moment to deliver its final result.
+  clearTimeout(stopTalk.t);
+  stopTalk.t = setTimeout(finish, 1200);
+  try { rec.stop(); } catch { finish(); }
+}
+function finish() {
+  if (!rec) return;
+  clearTimeout(stopTalk.t);
+  const r = rec; rec = null; r.onend = null;
+  const parts = done.concat(finals.filter(Boolean));
+  let candidates;
+  if (parts.length) {
+    // Build alternatives: each alternative of the last chunk, prefixed by top picks of earlier chunks.
+    const head = parts.slice(0, -1).map(f => f[0]).join(' ');
+    candidates = parts[parts.length - 1].map(a => (head + ' ' + a).trim());
+  } else if (interim.trim()) candidates = [interim.trim()];
+  else { $('live').textContent = 'Didn\'t catch anything. Try again closer to the mic.'; return; }
+  $('live').textContent = '';
+  tagFromText(candidates);
+}
+const talk = $('talk');
+talk.addEventListener('touchstart', startTalk, { passive: false });
+talk.addEventListener('touchend', stopTalk, { passive: false });
+talk.addEventListener('touchcancel', stopTalk, { passive: false });
+talk.addEventListener('mousedown', startTalk);
+window.addEventListener('mouseup', e => { if (listening) stopTalk(e); });
+talk.addEventListener('contextmenu', e => e.preventDefault());
+
+// ---- Keep screen awake ----
+let lock = null;
+async function wake() { try { if ('wakeLock' in navigator && document.visibilityState === 'visible') lock = await navigator.wakeLock.request('screen'); } catch {} }
+document.addEventListener('visibilitychange', wake); wake();
+
+// ---- Manual tag / edit ----
+function picker(title, tags, onSave, onDelete) {
+  const sel = tags.slice();
+  const draw = () => {
+    $('modalCard').innerHTML = `<div class="row" style="justify-content:space-between"><b style="font-size:18px">${esc(title)}</b><button class="btn" id="mClose">Cancel</button></div>` +
+      cats.map((c, ci) => `<h2>${esc(c.name)}</h2><div class="grid">${c.entries.map(e => `<button data-ci="${ci}" data-n="${esc(e.name)}" class="${sel[ci] === e.name ? 'on' : ''}">${esc(e.name)}</button>`).join('')}</div>`).join('') +
+      `<div class="row" style="margin-top:14px"><button class="btn primary" id="mSave" style="flex:1">Save</button>${onDelete ? '<button class="btn danger" id="mDel">Delete play</button>' : ''}</div>`;
+    $('mClose').onclick = close;
+    $('mSave').onclick = () => { onSave(sel); close(); };
+    if (onDelete) $('mDel').onclick = () => { if (confirm('Delete this play?')) { onDelete(); close(); } };
+    $('modalCard').querySelectorAll('.grid button').forEach(b => b.onclick = () => { const ci = +b.dataset.ci; sel[ci] = sel[ci] === b.dataset.n ? null : b.dataset.n; draw(); });
+  };
+  const close = () => $('modal').classList.add('hide');
+  draw();
+  $('modal').classList.remove('hide');
+}
+function editPlay(i) {
+  const p = game.plays[i];
+  if (!p) return;
+  picker(`Play #${i + 1}${p.heard ? ` · heard "${p.heard}"` : ''}`, p.tags,
+    sel => { p.tags = sel; p.manual = true; p.level = 'good'; save(); render(); if ($('last').innerHTML) showLast(p); },
+    () => { game.plays.splice(i, 1); save(); render(); $('last').classList.add('hide'); });
+}
+$('tapBtn').onclick = () => picker('Tap a play', cats.map(() => null), sel => addPlay({ tags: sel, heard: '', confidence: 1 }, true));
+$('log').onclick = e => { const li = e.target.closest('li'); if (li) editPlay(+li.dataset.i); };
+$('quarters').onclick = e => { const b = e.target.closest('button'); if (b) { quarter = b.dataset.q; save(); render(); } };
+$('typeBtn').onclick = () => { const v = $('typeCall').value.trim(); if (v) { tagFromText([v]); $('typeCall').value = ''; } };
+$('typeCall').onkeydown = e => { if (e.key === 'Enter') $('typeBtn').click(); };
+
+// ---- Export ----
+function csv() {
+  const head = ['Play #', 'Quarter', 'Time', ...cats.map(c => c.name), 'Heard', 'Confidence', 'Fixed by hand'];
+  const rows = game.plays.map((p, i) => [i + 1, p.quarter, timeStr(p.time), ...cats.map((c, ci) => p.tags[ci] || ''), p.heard, p.confidence, p.manual ? 'yes' : '']);
+  return [head, ...rows].map(r => r.map(v => { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(',')).join('\n');
+}
+function fileName() { return (game.name || 'game-' + game.started.slice(0, 10)).replace(/[^\w-]+/g, '-') + '.csv'; }
+$('exportBtn').onclick = async () => {
+  const blob = new Blob([csv()], { type: 'text/csv' });
+  const file = new File([blob], fileName(), { type: 'text/csv' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: fileName() }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fileName(); a.click();
+};
+
+// ---- Game management ----
+$('renameBtn').onclick = () => { const n = prompt('Game name (e.g. vs Central, Oct 9)', game.name); if (n != null) { game.name = n.trim(); save(); render(); } };
+$('newGameBtn').onclick = () => {
+  if (game.plays.length && !confirm(`Start a new game? Export first: the ${game.plays.length} plays in this game will be cleared from the list (a backup copy is kept on the phone).`)) return;
+  if (game.plays.length) { const hist = store.get('history', []); hist.push(game); store.set('history', hist.slice(-20)); }
+  game = newGame(); quarter = '1'; save(); render(); $('last').classList.add('hide');
+};
+
+// ---- Play sheet ----
+function showSheetInfo() {
+  $('sampleNote').classList.toggle('hide', !!sheetText);
+  $('sheetInfo').textContent = cats.map(c => `${c.entries.length} ${c.name}`).join(', ');
+}
+$('sheetText').value = sheetText || SAMPLE;
+$('saveSheet').onclick = () => {
+  const t = $('sheetText').value;
+  const parsed = Matcher.parseSheet(t);
+  if (!parsed.length) { alert('The play sheet is empty.'); return; }
+  sheetText = t; cats = parsed; store.set('sheet', t); showSheetInfo(); render();
+  $('sheetInfo').textContent += ' · saved';
+};
+function tab(which) {
+  $('game').classList.toggle('hide', which !== 'game');
+  $('sheetView').classList.toggle('hide', which !== 'sheet');
+  $('tabGame').classList.toggle('on', which === 'game');
+  $('tabSheet').classList.toggle('on', which === 'sheet');
+}
+$('tabGame').onclick = () => tab('game');
+$('tabSheet').onclick = () => tab('sheet');
+
+showSheetInfo();
+render();
+</script>
+</body>
+</html>
